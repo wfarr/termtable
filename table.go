@@ -27,17 +27,14 @@ var defaultTableOptions = &TableOptions{
 	UseSeparator: false,
 }
 
-func NewTable(rows [][]string, options *TableOptions) *Table {
+func NewTable(options *TableOptions) *Table {
 	t := &Table{
 		Options: options,
 	}
 	if t.Options == nil {
 		t.Options = defaultTableOptions
 	}
-	if rows != nil {
-		t.Rows = rows
-		t.computeProperties()
-	}
+
 	return t
 }
 
