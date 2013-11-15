@@ -19,12 +19,10 @@ type Table struct {
 
 type TableOptions struct {
 	Padding      int
-	UseSeparator bool
 }
 
 var defaultTableOptions = &TableOptions{
-	Padding:      1,
-	UseSeparator: false,
+	Padding: 1,
 }
 
 func NewTable(options *TableOptions) *Table {
@@ -79,10 +77,9 @@ func (t *Table) Render() string {
 	i := 0
 
 	if t.HasHeader {
-		if t.Options.UseSeparator {
-			buf.WriteString(t.separatorLine())
-			buf.WriteRune('\n')
-		}
+		buf.WriteString(t.separatorLine())
+		buf.WriteRune('\n')
+
 		for j := range t.Rows[0] {
 			buf.WriteString(t.getCell(i, j))
 		}
@@ -90,10 +87,9 @@ func (t *Table) Render() string {
 		buf.WriteRune('\n')
 	}
 
-	if t.Options.UseSeparator {
-		buf.WriteString(t.separatorLine())
-		buf.WriteRune('\n')
-	}
+
+	buf.WriteString(t.separatorLine())
+	buf.WriteRune('\n')
 
 	for i < len(t.Rows) {
 		row := t.Rows[i]
@@ -106,10 +102,8 @@ func (t *Table) Render() string {
 		i++
 	}
 
-	if t.Options.UseSeparator {
-		buf.WriteRune('\n')
-		buf.WriteString(t.separatorLine())
-	}
+	buf.WriteRune('\n')
+	buf.WriteString(t.separatorLine())
 
 	return buf.String()
 }
@@ -129,19 +123,15 @@ func (t *Table) getCell(row, col int) string {
 
 	var cellStr string
 
-	if t.Options.UseSeparator {
-		cellStr += "|"
-		cellStr += spacePadding
-	}
+	cellStr += "|"
+	cellStr += spacePadding
 
 	cellStr += cellContent
 	cellStr += strings.Repeat(" ", t.columnsWidth[col]-len(cellContent))
 	cellStr += spacePadding
 
-	if t.Options.UseSeparator {
-		if col == t.numColumns-1 {
-			cellStr += "|"
-		}
+	if col == t.numColumns-1 {
+		cellStr += "|"
 	}
 
 	return cellStr
