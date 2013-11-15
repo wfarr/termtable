@@ -2,16 +2,14 @@ package termtable
 
 import (
 	"bytes"
-	"math"
 	"strings"
 )
 
 type Table struct {
 	Rows    [][]string
-	Columns [][]string
 	Options *TableOptions
 
-	HasHeader bool
+	MaxColWidth int
 
 	numColumns   int
 	columnsWidth []int
@@ -19,53 +17,72 @@ type Table struct {
 
 type TableOptions struct {
 	Padding      int
+	Header       []string
+	MaxColWidth  int
 }
 
 var defaultTableOptions = &TableOptions{
 	Padding: 1,
+	Header: nil,
+	MaxColWidth: 50,
 }
 
 func NewTable(options *TableOptions) *Table {
 	t := &Table{
 		Options: options,
 	}
+
 	if t.Options == nil {
 		t.Options = defaultTableOptions
+	}
+
+	if t.HasHeader() {
+		t.AddRow(t.Options.Header)
+	}
+
+	if t.Options.MaxColWidth > 0 {
+		t.MaxColWidth = t.Options.MaxColWidth
+	} else {
+		t.MaxColWidth = 50
 	}
 
 	return t
 }
 
-func (t *Table) SetHeader(header []string) {
-	t.HasHeader = true
-	// There is a better way to do this
-	t.Rows = append([][]string{header}, t.Rows...)
-	t.computeProperties()
+func (t *Table) HasHeader() bool {
+	return t.Options.Header != nil
 }
 
 func (t *Table) AddRow(row []string) {
-	t.Rows = append(t.Rows, row)
-	t.computeProperties()
-}
+	if len(t.Rows) == 0 {
+		t.numColumns = len(row)
 
-func (t *Table) computeProperties() {
-	if len(t.Rows) > 0 {
-		t.numColumns = len(t.Rows[0])
-		t.columnsWidth = make([]int, t.numColumns)
-		t.recalculate()
-	}
-}
-
-func (t *Table) recalculate() {
-	t.Columns = [][]string{}
-	for i := 0; i < t.numColumns; i++ {
-		t.Columns = append(t.Columns, []string{})
-	}
-	for _, row := range t.Rows {
-		for j, cellContent := range row {
-			t.Columns[j] = append(t.Columns[j], cellContent)
-			t.columnsWidth[j] = int(math.Max(float64(len(cellContent)), float64(t.columnsWidth[j])))
+		for i := 0; i < t.numColumns; i++ {
+			t.columnsWidth = append(t.columnsWidth, 1)
 		}
+	}
+
+	for j, col := range row {
+		if len(col) > t.columnsWidth[j] {
+			if t.MaxColWidth != 0 && len(col) > t.MaxColWidth {
+				t.columnsWidth[j] = t.MaxColWidth
+			} else {
+				t.columnsWidth[j] = len(col)
+			}
+		}
+
+		// tabs ruin our wrapping, rewrite them to 4 spaces
+		row[j] = strings.Replace(col, "\t", "    ", -1)
+	}
+
+	lastCol := t.numColumns - 1
+	if t.MaxColWidth > 0 && len(row[lastCol]) > t.MaxColWidth {
+		wrapped := []string{ "", "", row[lastCol][t.MaxColWidth:] }
+		row[lastCol] = row[lastCol][0:t.MaxColWidth]
+		t.Rows = append(t.Rows, row)
+		t.AddRow(wrapped)
+	} else {
+		t.Rows = append(t.Rows, row)
 	}
 }
 
@@ -74,36 +91,22 @@ func (t *Table) Render() string {
 	bb := make([]byte, 0, 1024)
 	buf := bytes.NewBuffer(bb)
 
-	i := 0
+	buf.WriteString(t.separatorLine() + "\n")
 
-	if t.HasHeader {
-		buf.WriteString(t.separatorLine())
-		buf.WriteRune('\n')
-
-		for j := range t.Rows[0] {
+	for i, row := range t.Rows {
+		for j, _ := range row {
 			buf.WriteString(t.getCell(i, j))
 		}
-		i = 1
+
 		buf.WriteRune('\n')
+
+		// below header
+		if i == 0 && t.HasHeader() {
+			buf.WriteString(t.separatorLine() + "\n")
+		}
 	}
 
-
-	buf.WriteString(t.separatorLine())
-	buf.WriteRune('\n')
-
-	for i < len(t.Rows) {
-		row := t.Rows[i]
-		for j := range row {
-			buf.WriteString(t.getCell(i, j))
-		}
-		if i < len(t.Rows)-1 {
-			buf.WriteRune('\n')
-		}
-		i++
-	}
-
-	buf.WriteRune('\n')
-	buf.WriteString(t.separatorLine())
+	buf.WriteString(t.separatorLine() + "\n")
 
 	return buf.String()
 }
@@ -111,7 +114,7 @@ func (t *Table) Render() string {
 func (t *Table) separatorLine() string {
 	sep := "+"
 	for _, w := range t.columnsWidth {
-		sep += strings.Repeat("-", w+2*t.Options.Padding)
+		sep += strings.Repeat("-", w + 2 * t.Options.Padding)
 		sep += "+"
 	}
 	return sep
@@ -119,20 +122,21 @@ func (t *Table) separatorLine() string {
 
 func (t *Table) getCell(row, col int) string {
 	cellContent := t.Rows[row][col]
-	spacePadding := strings.Repeat(" ", t.Options.Padding)
 
-	var cellStr string
-
-	cellStr += "|"
-	cellStr += spacePadding
-
-	cellStr += cellContent
-	cellStr += strings.Repeat(" ", t.columnsWidth[col]-len(cellContent))
-	cellStr += spacePadding
-
-	if col == t.numColumns-1 {
-		cellStr += "|"
+	if len(cellContent) > t.MaxColWidth {
+		cellContent = cellContent[0:t.MaxColWidth]
 	}
 
-	return cellStr
+	spacePadding := strings.Repeat(" ", t.Options.Padding)
+	cellPadding := strings.Repeat(" ", t.columnsWidth[col] - len(cellContent))
+
+	cell := cellContent + cellPadding
+
+	if col == 0 {
+		cell = "|" + spacePadding + cell + spacePadding + "|"
+	} else {
+		cell = spacePadding + cell + spacePadding + "|"
+	}
+
+	return cell
 }
